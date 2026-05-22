@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Eye, EyeOff, Leaf, Lock, User,
   Calendar, Clock, Phone, MessageCircle,
-  ChevronRight, Check, LogOut, Trash2, Pencil, AlertTriangle,
+  ChevronRight, Check, LogOut, Trash2, AlertTriangle, List, X, Bell,
 } from "lucide-react";
 import {
   type Cita,
@@ -17,6 +17,9 @@ import {
   deleteCita,
   todayISO,
   getCitaUrgency,
+  getCitasAlertaUnaHora,
+  formatFechaLabel,
+  groupCitasByFecha,
 } from "../lib/api";
 
 const TIME_SLOTS = [
@@ -24,6 +27,8 @@ const TIME_SLOTS = [
   "12:30","13:00","13:30","14:00","14:30","15:00","15:30",
   "16:00","16:30","17:00","17:30","18:00",
 ];
+
+const SOFTDEV_WHATSAPP = "https://wa.me/933070052";
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
@@ -180,9 +185,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </div>
       </div>
 
-      <p className="mt-8 text-[11px] text-muted-foreground/60 tracking-wide">
-        © {new Date().getFullYear()} Quietud y Belleza
-      </p>
+      <FooterCredits className="mt-8" />
     </div>
   );
 }
@@ -213,9 +216,13 @@ function LoginField({
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
+type AgendaModo = "proximas" | "dia";
+
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [loading, setLoading] = useState(true);
+  const [agendaModo, setAgendaModo] = useState<AgendaModo>("proximas");
+  const [filtroDia, setFiltroDia] = useState("");
   const [form, setForm] = useState({
     nombre_completo: "",
     whatsapp: "",
@@ -225,28 +232,52 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [errors, setErrors]   = useState<Partial<typeof form>>({});
   const [success, setSuccess] = useState(false);
   const [saving, setSaving]   = useState(false);
+  const [alertasCitas, setAlertasCitas] = useState<Cita[]>([]);
 
   const hoy = todayISO();
+
+  const revisarAlertas = useCallback(async () => {
+    try {
+      const citasHoy = await fetchCitas({ modo: "dia", fecha: hoy });
+      setAlertasCitas(getCitasAlertaUnaHora(citasHoy, hoy));
+    } catch (err) {
+      console.error(err);
+    }
+  }, [hoy]);
 
   const loadCitas = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchCitas(hoy);
+      const data =
+        agendaModo === "dia" && filtroDia
+          ? await fetchCitas({ modo: "dia", fecha: filtroDia })
+          : await fetchCitas({ modo: "proximas" });
       setCitas(data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [hoy]);
+  }, [agendaModo, filtroDia]);
 
   useEffect(() => {
     loadCitas();
   }, [loadCitas]);
 
-  const today = new Date().toLocaleDateString("es-MX", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
+  useEffect(() => {
+    revisarAlertas();
+    const intervalo = setInterval(revisarAlertas, 60_000);
+    return () => clearInterval(intervalo);
+  }, [revisarAlertas]);
+
+  const agendaSubtitle =
+    agendaModo === "proximas"
+      ? "Todas las citas próximas, de la más cercana a la más lejana"
+      : filtroDia
+        ? formatFechaLabel(filtroDia)
+        : "Selecciona un día";
+
+  const citasAgrupadas = agendaModo === "proximas" ? groupCitasByFecha(citas) : null;
 
   const completedCount = citas.filter(c => c.estado === "Completada").length;
   const pendingCount   = citas.filter(c => c.estado === "Pendiente").length;
@@ -256,9 +287,21 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     if (!form.nombre_completo.trim()) e.nombre_completo = "Requerido";
     if (!form.whatsapp.trim())        e.whatsapp        = "Requerido";
     if (!form.fecha)                  e.fecha           = "Requerido";
+    else if (form.fecha < hoy)        e.fecha           = "No se permiten fechas pasadas";
     if (!form.hora)                   e.hora            = "Requerido";
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  const verTodasProximas = () => {
+    setAgendaModo("proximas");
+    setFiltroDia("");
+  };
+
+  const verDiaEspecifico = (fecha: string) => {
+    if (!fecha) return;
+    setAgendaModo("dia");
+    setFiltroDia(fecha);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -277,6 +320,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3200);
       await loadCitas();
+      await revisarAlertas();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error al guardar");
     } finally {
@@ -290,6 +334,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     try {
       await updateCita(cita.id, { estado: nuevo });
       await loadCitas();
+      await revisarAlertas();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error al actualizar");
     }
@@ -300,6 +345,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     try {
       await deleteCita(id);
       await loadCitas();
+      await revisarAlertas();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error al eliminar");
     }
@@ -308,29 +354,34 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
 
-      <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-md border-b border-border">
-        <div className="max-w-7xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-              <Leaf className="w-3.5 h-3.5 text-primary" />
+      <div className="sticky top-0 z-20">
+        <header className="bg-card/80 backdrop-blur-md border-b border-border">
+          <div className="max-w-7xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                <Leaf className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <span className="font-display text-lg text-foreground tracking-wide">Quietud y Belleza</span>
+              <span className="hidden sm:block text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
+                Centro Estético
+              </span>
             </div>
-            <span className="font-display text-lg text-foreground tracking-wide">Quietud y Belleza</span>
-            <span className="hidden sm:block text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
-              Centro Estético
-            </span>
-          </div>
 
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onLogout}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group"
-            >
-              <LogOut className="w-3.5 h-3.5 group-hover:text-primary transition-colors" />
-              <span className="hidden sm:block">Cerrar sesión</span>
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={onLogout}
+                className="flex items-center gap-1.5 text-xs text-red-500/90 hover:text-red-600 hover:bg-red-50 rounded-lg px-2.5 py-1.5 -mr-2.5 transition-colors group"
+              >
+                <LogOut className="w-3.5 h-3.5 transition-colors" />
+                <span className="hidden sm:block">Cerrar sesión</span>
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+
+        <CitaAlertBanner citas={alertasCitas} />
+      </div>
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-6 md:px-10 py-10 md:py-14 grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-10 lg:gap-14 items-start">
 
@@ -361,7 +412,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               <FormField label="Número de WhatsApp" icon={<Phone className="w-4 h-4" />} error={errors.whatsapp}>
                 <input
                   type="tel"
-                  placeholder="+52 55 0000 0000"
+                  placeholder="+51 921 074 661"
                   value={form.whatsapp}
                   onChange={e => setForm(f => ({ ...f, whatsapp: e.target.value }))}
                   className="w-full pl-10 pr-4 py-3 bg-input-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring transition-all"
@@ -372,6 +423,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <FormField label="Fecha" icon={<Calendar className="w-4 h-4" />} error={errors.fecha}>
                   <input
                     type="date"
+                    min={hoy}
                     value={form.fecha}
                     onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
                     className="w-full pl-10 pr-3 py-3 bg-input-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring transition-all appearance-none"
@@ -417,12 +469,12 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         </div>
 
         <div>
-          <div className="mb-7 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
               <h2 className="font-display text-[2rem] leading-[1.15] text-foreground">
-                Agenda del día
+                Agenda
               </h2>
-              <p className="mt-2 text-sm text-muted-foreground capitalize">{today}</p>
+              <p className="mt-2 text-sm text-muted-foreground capitalize">{agendaSubtitle}</p>
             </div>
 
             <div className="flex items-end gap-6 sm:text-right shrink-0">
@@ -437,6 +489,14 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
           </div>
+
+          <AgendaFilter
+            modo={agendaModo}
+            filtroDia={filtroDia}
+            hoy={hoy}
+            onVerProximas={verTodasProximas}
+            onVerDia={verDiaEspecifico}
+          />
 
           <div className="flex items-center gap-5 mb-5 flex-wrap text-[11px] text-muted-foreground">
             <span className="flex items-center gap-2">
@@ -453,32 +513,53 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             <div className="py-20 flex justify-center">
               <span className="w-6 h-6 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
             </div>
+          ) : citas.length === 0 ? (
+            <div className="py-20 text-center text-muted-foreground text-sm">
+              {agendaModo === "proximas"
+                ? "No hay citas próximas agendadas."
+                : "No hay citas para esta fecha."}
+            </div>
+          ) : agendaModo === "proximas" && citasAgrupadas ? (
+            <div className="space-y-8">
+              {citasAgrupadas.map(grupo => (
+                <section key={grupo.fecha}>
+                  <h3 className="text-[10px] tracking-[0.18em] uppercase text-muted-foreground font-medium mb-3 pl-0.5 capitalize">
+                    {formatFechaLabel(grupo.fecha)}
+                  </h3>
+                  <div className="space-y-2.5">
+                    {grupo.citas.map(cita => (
+                      <AppointmentCard
+                        key={cita.id}
+                        cita={cita}
+                        showFecha={false}
+                        onToggleEstado={() => toggleEstado(cita)}
+                        onDelete={() => handleDelete(cita.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           ) : (
             <div className="space-y-2.5">
               {citas.map(cita => (
                 <AppointmentCard
                   key={cita.id}
                   cita={cita}
+                  showFecha={false}
                   onToggleEstado={() => toggleEstado(cita)}
                   onDelete={() => handleDelete(cita.id)}
                 />
               ))}
-              {citas.length === 0 && (
-                <div className="py-20 text-center text-muted-foreground text-sm">
-                  No hay citas agendadas para hoy.
-                </div>
-              )}
             </div>
           )}
         </div>
       </main>
 
       <footer className="border-t border-border py-5 px-6 md:px-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <span className="font-display text-sm text-muted-foreground">Quietud y Belleza</span>
-          <span className="text-xs text-muted-foreground">
-            {new Date().getFullYear()} · Sistema de Gestión
-          </span>
+          <FooterCredits align="end" />
         </div>
       </footer>
     </div>
@@ -486,6 +567,132 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
+
+function FooterCredits({
+  className = "",
+  align = "center",
+}: {
+  className?: string;
+  align?: "center" | "end";
+}) {
+  return (
+    <p
+      className={[
+        "text-xs text-gray-900 font-medium tracking-wide",
+        align === "center" ? "text-center" : "text-center sm:text-right",
+        className,
+      ].join(" ")}
+    >
+      © {new Date().getFullYear()} Quietud y Belleza
+      <span className="text-gray-500 mx-1.5 hidden sm:inline">·</span>
+      <span className="block sm:inline mt-1 sm:mt-0">
+        Desarrollado por{" "}
+        <a
+          href={SOFTDEV_WHATSAPP}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-900 hover:text-primary hover:underline transition-colors"
+        >
+          A&amp;S SoftDev
+        </a>
+      </span>
+    </p>
+  );
+}
+
+function CitaAlertBanner({ citas }: { citas: Cita[] }) {
+  if (citas.length === 0) return null;
+
+  return (
+    <div
+      role="alert"
+      className="border-b border-orange-400/40 bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md"
+    >
+      <div className="max-w-7xl mx-auto px-6 md:px-10 py-3 space-y-2">
+        {citas.map(cita => (
+          <div
+            key={cita.id}
+            className="flex items-start gap-3 text-sm font-medium"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20">
+              <Bell className="h-4 w-4 animate-pulse" />
+            </span>
+            <p className="pt-1 leading-snug">
+              🔔 ¡Alerta! La cita de{" "}
+              <span className="font-semibold underline decoration-white/40">
+                {cita.nombre_completo}
+              </span>{" "}
+              empieza en menos de 1 hora ({cita.hora}).
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgendaFilter({
+  modo,
+  filtroDia,
+  hoy,
+  onVerProximas,
+  onVerDia,
+}: {
+  modo: AgendaModo;
+  filtroDia: string;
+  hoy: string;
+  onVerProximas: () => void;
+  onVerDia: (fecha: string) => void;
+}) {
+  return (
+    <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-card border border-border rounded-2xl">
+      <button
+        type="button"
+        onClick={onVerProximas}
+        className={[
+          "inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium tracking-[0.06em] uppercase transition-all shrink-0",
+          modo === "proximas"
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted",
+        ].join(" ")}
+      >
+        <List className="w-3.5 h-3.5" />
+        Todas las próximas
+      </button>
+
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <span className="text-[10px] tracking-[0.14em] uppercase text-muted-foreground shrink-0 hidden sm:block">
+          o por día
+        </span>
+        <div className="relative flex-1 min-w-0">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="date"
+            min={hoy}
+            value={modo === "dia" ? filtroDia : ""}
+            onChange={e => onVerDia(e.target.value)}
+            className={[
+              "w-full pl-10 pr-9 py-2.5 bg-input-background border rounded-xl text-sm transition-all",
+              modo === "dia"
+                ? "border-primary ring-2 ring-ring text-foreground"
+                : "border-border text-foreground focus:border-primary focus:ring-2 focus:ring-ring",
+            ].join(" ")}
+          />
+          {modo === "dia" && filtroDia && (
+            <button
+              type="button"
+              onClick={onVerProximas}
+              title="Volver a todas las próximas"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function FormField({
   label,
@@ -523,10 +730,12 @@ function urgencyStyles(urgency: Urgency, isCompleted: boolean): string {
 
 function AppointmentCard({
   cita,
+  showFecha = false,
   onToggleEstado,
   onDelete,
 }: {
   cita: Cita;
+  showFecha?: boolean;
   onToggleEstado: () => void;
   onDelete: () => void;
 }) {
@@ -563,7 +772,10 @@ function AppointmentCard({
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{cita.nombre_completo}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{cita.estado}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {showFecha && <span className="capitalize">{formatFechaLabel(cita.fecha)} · </span>}
+          {cita.estado}
+        </p>
       </div>
 
       {urgency === "urgent" && !isCompleted && (

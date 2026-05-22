@@ -6,7 +6,8 @@ const router = Router();
 
 router.use(requireAuth);
 
-// GET /api/citas?fecha=2026-05-21
+// GET /api/citas              → citas futuras (fecha >= hoy), orden cronológico ascendente
+// GET /api/citas?fecha=YYYY-MM-DD → citas de un día concreto
 router.get("/", async (req, res) => {
   try {
     const { fecha } = req.query;
@@ -27,7 +28,9 @@ router.get("/", async (req, res) => {
         `SELECT id, nombre_completo, whatsapp,
                 TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha,
                 hora, estado
-         FROM citas ORDER BY fecha DESC, hora ASC`
+         FROM citas
+         WHERE fecha >= CURRENT_DATE
+         ORDER BY fecha ASC, hora ASC`
       );
     }
 
@@ -45,6 +48,14 @@ router.post("/", async (req, res) => {
 
     if (!nombre_completo?.trim() || !whatsapp?.trim() || !fecha || !hora) {
       return res.status(400).json({ error: "Faltan campos obligatorios" });
+    }
+
+    const pastCheck = await getPool().query(
+      `SELECT ($1::date < CURRENT_DATE) AS es_pasada`,
+      [fecha]
+    );
+    if (pastCheck.rows[0]?.es_pasada) {
+      return res.status(400).json({ error: "No se permiten fechas pasadas" });
     }
 
     const estadoFinal = estado === "Completada" ? "Completada" : "Pendiente";

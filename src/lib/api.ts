@@ -76,9 +76,49 @@ export function logout() {
   setToken(null);
 }
 
-export async function fetchCitas(fecha?: string): Promise<Cita[]> {
-  const q = fecha ? `?fecha=${fecha}` : "";
+export type FetchCitasOptions =
+  | { modo: "proximas" }
+  | { modo: "dia"; fecha: string };
+
+export async function fetchCitas(
+  options: FetchCitasOptions = { modo: "proximas" }
+): Promise<Cita[]> {
+  const q =
+    options.modo === "dia" ? `?fecha=${encodeURIComponent(options.fecha)}` : "";
   return request<Cita[]>(`/citas${q}`);
+}
+
+export function formatFechaLabel(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const hoy = todayISO();
+  const manana = new Date();
+  manana.setDate(manana.getDate() + 1);
+  const mananaISO = [
+    manana.getFullYear(),
+    String(manana.getMonth() + 1).padStart(2, "0"),
+    String(manana.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  if (iso === hoy) return "Hoy";
+  if (iso === mananaISO) return "Mañana";
+  return date.toLocaleDateString("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+export function groupCitasByFecha(citas: Cita[]): { fecha: string; citas: Cita[] }[] {
+  const map = new Map<string, Cita[]>();
+  for (const cita of citas) {
+    if (!map.has(cita.fecha)) map.set(cita.fecha, []);
+    map.get(cita.fecha)!.push(cita);
+  }
+  return Array.from(map.entries()).map(([fecha, items]) => ({
+    fecha,
+    citas: items,
+  }));
 }
 
 export async function createCita(
@@ -113,6 +153,19 @@ export function todayISO(): string {
 }
 
 export type Urgency = "none" | "soon" | "urgent";
+
+/** Citas de hoy pendientes que empiezan en ≤60 minutos (aún no iniciadas) */
+export function getCitasAlertaUnaHora(citas: Cita[], fechaHoy: string): Cita[] {
+  const now = new Date();
+  return citas
+    .filter(c => {
+      if (c.fecha !== fechaHoy || c.estado !== "Pendiente") return false;
+      const target = new Date(`${c.fecha}T${c.hora}:00`);
+      const diffMin = (target.getTime() - now.getTime()) / (1000 * 60);
+      return diffMin > 0 && diffMin <= 60;
+    })
+    .sort((a, b) => a.hora.localeCompare(b.hora));
+}
 
 /** Recordatorios visuales: <24h borde verde, <1h badge urgente */
 export function getCitaUrgency(fecha: string, hora: string): Urgency {

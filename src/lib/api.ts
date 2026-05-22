@@ -144,6 +144,28 @@ export async function deleteCita(id: number): Promise<void> {
   await request<{ ok: boolean }>(`/citas/${id}`, { method: "DELETE" });
 }
 
+/** Convierte "14:30" → "2:30 PM" */
+export function formatHora12(hora24: string): string {
+  const [hStr, mStr = "00"] = hora24.split(":");
+  const h24 = parseInt(hStr, 10);
+  if (Number.isNaN(h24)) return hora24;
+  const period = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${mStr} ${period}`;
+}
+
+/** Intervalos de 30 min, las 24 horas (valor 24h, etiqueta AM/PM) */
+export function getTimeSlots(): { value: string; label: string }[] {
+  const slots: { value: string; label: string }[] = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      slots.push({ value, label: formatHora12(value) });
+    }
+  }
+  return slots;
+}
+
 export function todayISO(): string {
   const d = new Date();
   const y = d.getFullYear();

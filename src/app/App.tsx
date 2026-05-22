@@ -19,14 +19,12 @@ import {
   getCitaUrgency,
   getCitasAlertaUnaHora,
   formatFechaLabel,
+  formatHora12,
+  getTimeSlots,
   groupCitasByFecha,
 } from "../lib/api";
 
-const TIME_SLOTS = [
-  "09:00","09:30","10:00","10:30","11:00","11:30","12:00",
-  "12:30","13:00","13:30","14:00","14:30","15:00","15:30",
-  "16:00","16:30","17:00","17:30","18:00",
-];
+const TIME_SLOTS = getTimeSlots();
 
 const SOFTDEV_WHATSAPP = "https://wa.me/933070052";
 
@@ -436,8 +434,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                     onChange={e => setForm(f => ({ ...f, hora: e.target.value }))}
                     className="w-full pl-10 pr-3 py-3 bg-input-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-ring transition-all appearance-none cursor-pointer"
                   >
-                    <option value="">Hora</option>
-                    {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                    <option value="">Seleccionar hora</option>
+                    {TIME_SLOTS.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                 </FormField>
               </div>
@@ -622,7 +622,7 @@ function CitaAlertBanner({ citas }: { citas: Cita[] }) {
               <span className="font-semibold underline decoration-white/40">
                 {cita.nombre_completo}
               </span>{" "}
-              empieza en menos de 1 hora ({cita.hora}).
+              empieza en menos de 1 hora ({formatHora12(cita.hora)}).
             </p>
           </div>
         ))}
@@ -749,8 +749,8 @@ function AppointmentCard({
         urgencyStyles(urgency, isCompleted),
       ].join(" ")}
     >
-      <span className="w-12 shrink-0 text-sm font-medium text-foreground tabular-nums">
-        {cita.hora}
+      <span className="w-[4.5rem] shrink-0 text-sm font-medium text-foreground tabular-nums">
+        {formatHora12(cita.hora)}
       </span>
 
       <button

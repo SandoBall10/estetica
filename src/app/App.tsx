@@ -593,7 +593,7 @@ function FooterCredits({
           rel="noopener noreferrer"
           className="text-gray-900 hover:text-primary hover:underline transition-colors"
         >
-          A&amp;S SoftDev
+          A&amp;S zentrIT
         </a>
       </span>
     </p>

@@ -1,7 +1,5 @@
 node_modules
 dist
-.env
-.env.local
 .vercel
 
 .angular/
@@ -9,3 +7,4 @@ out-tsc/
 test-results/
 playwright-report/
 entrega/
+config.bat

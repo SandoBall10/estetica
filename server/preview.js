@@ -14,6 +14,8 @@ app.use("/api", (req, res, next) => {
 });
 app.use(express.static(root));
 app.get("*", (_req, res) => res.sendFile(path.join(root, "index.html")));
-app.listen(4173, "127.0.0.1", () =>
-  console.log("Quietud y Belleza: http://127.0.0.1:4173"),
+const port = Number(process.env.PORT) || 4173;
+const host = process.env.HOST || "0.0.0.0";
+app.listen(port, host, () =>
+  console.log(`Quietud y Belleza: http://${host}:${port}`),
 );

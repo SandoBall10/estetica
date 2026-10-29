@@ -1,0 +1,217 @@
+<main class="page clients-page">
+  <section class="page-heading">
+    <div class="heading-copy">
+      <h1>Clientes</h1>
+      <p>Conoce, acompaña y fideliza a cada persona.</p>
+    </div>
+    <div class="stats">
+      <q-stat
+        icon="users"
+        label="Clientes activos"
+        [value]="data.demo()?'248':''+data.clients().length"
+        [note]="data.demo()?'↑ 16% vs. mes anterior':''"
+      /><q-stat
+        icon="userPlus"
+        label="Nuevos este mes"
+        [value]="data.demo()?'18':'—'"
+        [note]="data.demo()?'↑ 28% vs. mes anterior':''"
+      /><q-stat
+        icon="cake"
+        label="Cumpleaños próximos"
+        [value]="data.demo()?'6':'—'"
+        [note]="data.demo()?'2 esta semana':''"
+        [orange]="true"
+      />
+    </div>
+    <button class="primary new-button" (click)="dialogs.open({kind:'client'})">
+      <q-icon name="plus" />Nuevo cliente
+    </button>
+  </section>
+  <div class="clients-grid">
+    <div class="directory-column">
+      <section class="card directory">
+        <header class="directory-header">
+          <h2>Directorio de clientes</h2>
+          <label class="field"
+            ><q-icon name="search" /><input
+              aria-label="Buscar por nombre o teléfono"
+              placeholder="Buscar por nombre o teléfono"
+              [ngModel]="search()"
+              (ngModelChange)="setSearch($event)"
+          /></label>
+          <div class="field filter-field">
+            <q-icon name="filter" /><select
+              aria-label="Filtrar clientes"
+              [ngModel]="status()"
+              (ngModelChange)="setStatus($event)"
+            >
+              <option value="">Todos los clientes</option>
+              <option>Frecuente</option>
+              <option>Nuevo</option>
+              <option>Inactivo</option>
+            </select>
+          </div>
+        </header>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>CLIENTE</th>
+                <th>CONTACTO</th>
+                <th>ÚLTIMA VISITA</th>
+                <th>PRÓXIMA CITA</th>
+                <th>VISITAS</th>
+                <th>ESTADO</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for(c of visible();track c.id){
+              <tr [class.selected]="c.id===selected()?.id">
+                <td>
+                  <button class="client-select" (click)="selectedId.set(c.id)">
+                    <q-avatar [text]="initials(c.nombre)" /><span
+                      >{{c.nombre}}</span
+                    >
+                  </button>
+                </td>
+                <td>
+                  <div class="contact">
+                    <q-icon name="phone" /><span
+                      >{{c.telefono}}<small>{{c.email}}</small></span
+                    >
+                  </div>
+                </td>
+                <td>{{date(c.ultima)}}</td>
+                <td>
+                  {{next(c)?date(next(c)!.fecha):'—'}}<small
+                    >{{next(c)?.hora}}</small
+                  >
+                </td>
+                <td class="visits">{{c.visitas}}</td>
+                <td><q-badge [text]="c.estado" /></td>
+                <td>
+                  <button
+                    class="icon-button"
+                    [attr.aria-label]="'Editar cliente '+c.nombre"
+                    (click)="dialogs.open({kind:'client',value:c})"
+                  >
+                    <q-icon name="more" />
+                  </button>
+                </td>
+              </tr>
+              }@empty{
+              <tr>
+                <td colspan="7" class="empty">No se encontraron clientes.</td>
+              </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <footer class="pagination">
+          <span
+            >Mostrando {{filtered().length?(page()-1)*5+1:0}} a
+            {{Math.min(page()*5,filtered().length)}} de {{filtered().length}}
+            clientes</span
+          >
+          <div>
+            <button
+              class="icon-button"
+              aria-label="Página anterior"
+              [disabled]="page()===1"
+              (click)="page.set(page()-1)"
+            >
+              <q-icon name="left" /></button
+            >@for(p of pages();track p){<button
+              [class.active]="page()===p"
+              [attr.aria-label]="'Página '+p"
+              (click)="page.set(p)"
+            >
+              {{p}}</button
+            >}<button
+              class="icon-button"
+              aria-label="Página siguiente"
+              [disabled]="page()>=pageCount()"
+              (click)="page.set(page()+1)"
+            >
+              <q-icon name="chevron" />
+            </button>
+          </div>
+        </footer>
+      </section>
+      <section class="card birthday-banner">
+        <span class="round-icon peach"><q-icon name="gift" /></span>
+        <div>
+          <strong>Cumpleaños próximos</strong>
+          <p>
+            {{data.demo()?'6 clientes cumplen años en los próximos 14
+            días.':'Descubre los próximos cumpleaños de tus clientes.'}}
+          </p>
+        </div>
+        <button
+          class="text-button orange push-right"
+          (click)="dialogs.open({kind:'birthdays'})"
+        >
+          Ver próximos cumpleaños<q-icon name="chevron" />
+        </button>
+      </section>
+    </div>
+    <aside class="card client-detail">
+      @if(selected();as c){
+      <header class="client-detail-heading">
+        <q-avatar [text]="initials(c.nombre)" [large]="true" />
+        <div>
+          <h2>{{c.nombre}}</h2>
+          <p><q-icon name="phone" />{{c.telefono}}</p>
+          <p><q-icon name="calendar" />Cliente desde {{joined(c)}}</p>
+        </div>
+        <button
+          class="icon-button push-right"
+          aria-label="Editar ficha del cliente"
+          (click)="dialogs.open({kind:'client',value:c})"
+        >
+          <q-icon name="more" />
+        </button>
+      </header>
+      <div class="client-numbers">
+        <div>
+          <span class="round-icon"><q-icon name="chart" /></span
+          ><span><strong>{{c.visitas}}</strong>visitas</span>
+        </div>
+        <div>
+          <span class="round-icon"><q-icon name="wallet" /></span
+          ><span><strong>S/ {{money(c.invertido)}}</strong>invertidos</span>
+        </div>
+      </div>
+      <label class="section-label">PRÓXIMA CITA</label>@if(next(c);as a){
+      <div class="upcoming-block">
+        <q-icon name="calendar" />
+        <div>{{date(a.fecha)}} · {{a.hora}}<small>{{a.servicio}}</small></div>
+      </div>
+      }@else{
+      <p class="upcoming-block">Sin citas programadas</p>
+      }<label class="section-label preferences-label">PREFERENCIAS</label>
+      <div class="preferences">
+        @for(p of c.preferencias;track p){<span
+          ><q-icon [name]="p.includes('Piel')?'drop':'sun'" />{{p}}</span
+        >}@empty{<span>Sin preferencias registradas</span>}
+      </div>
+      <div class="client-actions">
+        <button
+          class="outline"
+          (click)="dialogs.open({kind:'history',client:c})"
+        >
+          <q-icon name="history" />Ver historial</button
+        ><button
+          class="primary"
+          (click)="dialogs.open({kind:'appointment',client:c})"
+        >
+          <q-icon name="calendar" />Agendar cita
+        </button>
+      </div>
+      }@else{
+      <p class="empty">Selecciona o crea un cliente para ver su ficha.</p>
+      }
+    </aside>
+  </div>
+</main>

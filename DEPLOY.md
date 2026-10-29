@@ -1,106 +1,39 @@
-# Despliegue en Vercel — Quietud y Belleza
+# Despliegue — Quietud y Belleza (Angular)
 
-## Estructura del proyecto
-
-```
-├── api/
-│   └── index.js          # Punto de entrada serverless (Express)
-├── server/
-│   ├── app.js            # App Express + CORS
-│   ├── db.js             # Pool PostgreSQL
-│   ├── dev.js            # Servidor local (puerto 3001)
-│   ├── schema.sql        # SQL manual (opcional)
-│   ├── middleware/
-│   │   └── auth.js
-│   └── routes/
-│       ├── auth.js       # POST /api/auth/login
-│       └── citas.js      # CRUD /api/citas
-├── src/
-│   ├── app/App.tsx
-│   └── lib/api.ts
-├── vercel.json
-├── .env.example
-└── package.json
-```
-
-## Dependencias
+## Desarrollo
 
 ```bash
-npm install
-```
-
-Paquetes del backend: `express`, `cors`, `pg`, `jsonwebtoken`, `dotenv`  
-Desarrollo: `concurrently`
-
-## Variables de entorno
-
-Copia `.env.example` a `.env` para desarrollo local.
-
-| Variable | Descripción |
-|----------|-------------|
-| `POSTGRES_URL` o `DATABASE_URL` | URI de conexión PostgreSQL |
-| `ADMIN_USER` | Usuario del panel |
-| `ADMIN_PASSWORD` | Contraseña del panel |
-| `JWT_SECRET` | Clave para firmar tokens (string largo aleatorio) |
-| `FRONTEND_URL` | Origen permitido en CORS (ej. `http://localhost:5173`) |
-
-## Base de datos en la nube
-
-### Opción A: Vercel Postgres
-
-1. En el dashboard de Vercel → tu proyecto → **Storage** → **Create Database** → Postgres.
-2. Vincula la BD al proyecto: se inyecta `POSTGRES_URL` automáticamente.
-3. La tabla se crea sola al primer request (`initDb` en `server/db.js`).
-
-### Opción B: Supabase (gratis)
-
-1. Crea un proyecto en [supabase.com](https://supabase.com).
-2. **Project Settings → Database → Connection string → URI**.
-3. Pégala en Vercel como `DATABASE_URL` (modo *Transaction* o *Session*).
-4. Opcional: ejecuta `server/schema.sql` en el SQL Editor de Supabase.
-
-## Desarrollo local
-
-Terminal 1 — API:
-
-```bash
-npm run dev:api
-```
-
-Terminal 2 — Frontend (proxy `/api` → `localhost:3001`):
-
-```bash
+npm ci
 npm run dev
 ```
 
-O ambos a la vez:
+La demostración está disponible desde el login sin API. Para datos reales, copia `.env.example` a `.env`, configura PostgreSQL y ejecuta `npm run dev:all`.
+
+## Compilación y vista previa
 
 ```bash
-npm run dev:all
+npm run build
+npm run preview
 ```
 
-## Despliegue en Vercel
+Angular genera `dist/index.html`, JavaScript y assets. La vista previa local utiliza http://127.0.0.1:4173. Los comandos mantienen `VITE_API_URL` como configuración pública opcional; por defecto la API es `/api`.
 
-1. Sube el repo a GitHub y conéctalo en [vercel.com](https://vercel.com).
-2. **Environment Variables** (Production + Preview):
+## Vercel
 
-   - `ADMIN_USER`
-   - `ADMIN_PASSWORD`
-   - `JWT_SECRET`
-   - `FRONTEND_URL` = `https://tu-dominio.vercel.app`
-   - `POSTGRES_URL` o `DATABASE_URL` (si usas Supabase)
+`vercel.json` mantiene el build `npm run build`, la salida `dist`, las rutas `/api/*` hacia la función Express de `api/index.js`, y el resto hacia la SPA. No se realizó ningún despliegue durante la implementación.
 
-3. Deploy. `vercel.json` ya enruta:
-   - `/api/*` → función Express
-   - resto → SPA (`dist/index.html`)
+Configura `DATABASE_URL` o `POSTGRES_URL`, `ADMIN_USER`, `ADMIN_PASSWORD`, `JWT_SECRET` y `FRONTEND_URL`. Usa Node 22.12+ compatible con Angular 21. No incluyas `.env` en el repositorio ni las credenciales del servidor en la configuración pública del frontend.
 
-## Endpoints API
+El inicio de la API aplica una migración aditiva de `server/db.js`. Conserva las citas previas y agrega clientes, servicios, duración y confirmación de citas. La idempotencia y compatibilidad con el esquema anterior tienen prueba de integración sobre PostgreSQL temporal. La conexión al proveedor de producción requiere las credenciales del propietario.
 
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| POST | `/api/auth/login` | No | `{ usuario, contrasena }` → `{ token }` |
-| GET | `/api/auth/verify` | Bearer | Valida sesión |
-| GET | `/api/citas?fecha=YYYY-MM-DD` | Bearer | Lista citas |
-| POST | `/api/citas` | Bearer | Crea cita |
-| PUT | `/api/citas/:id` | Bearer | Edita cita |
-| DELETE | `/api/citas/:id` | Bearer | Elimina cita |
+## Contratos
+
+- POST `/api/auth/login`, GET `/api/auth/verify`.
+- GET/POST `/api/citas`, PUT/DELETE `/api/citas/:id`.
+- GET `/api/citas?fecha=YYYY-MM-DD` y GET `/api/citas?cliente=Nombre`.
+- GET/POST `/api/clientes`, PUT `/api/clientes/:id`.
+- GET/POST `/api/servicios`, PUT `/api/servicios/:id`.
+
+Todos los datos operativos requieren JWT. La creación de citas rechaza fechas pasadas. Los clientes y servicios nuevos no se rellenan con ejemplos en una base real. El catálogo se administra desde la interfaz.
+
+Para sustituir el backend, adapta `src/ng/data.service.ts` y conserva los contratos tipados de `src/ng/models.ts`. La recuperación por correo y facturación no forman parte de la API actual.

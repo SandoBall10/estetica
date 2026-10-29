@@ -1,0 +1,177 @@
+<dialog
+  #dialog
+  class="app-dialog"
+  aria-labelledby="dialog-title"
+  (cancel)="dialogs.close()"
+  (click)="backdrop($event)"
+>
+  <header>
+    <div>
+      <p class="eyebrow">QUIETUD Y BELLEZA</p>
+      <h2 id="dialog-title">{{title()}}</h2>
+    </div>
+    <button
+      class="icon-button"
+      aria-label="Cerrar diálogo"
+      (click)="dialogs.close()"
+    >
+      <q-icon name="close" />
+    </button>
+  </header>
+  @let s=state(); @switch(s.kind){ @case('appointment'){<q-appointment-form
+    [value]="s.value"
+    [client]="s.client"
+    (saved)="dialogs.close()"
+  />} @case('client'){
+  <form [formGroup]="clientForm" (ngSubmit)="saveClient()">
+    <div class="form-grid">
+      <label class="full"
+        >NOMBRE COMPLETO<input
+          formControlName="nombre"
+          autocomplete="name" /></label
+      ><label
+        >TELÉFONO<input
+          formControlName="telefono"
+          type="tel"
+          autocomplete="tel" /></label
+      ><label
+        >CORREO ELECTRÓNICO<input
+          formControlName="email"
+          type="email"
+          autocomplete="email" /></label
+      ><label
+        >ESTADO<select formControlName="estado">
+          <option>Nuevo</option>
+          <option>Frecuente</option>
+          <option>Inactivo</option>
+        </select></label
+      ><label>CUMPLEAÑOS<input formControlName="cumple" type="date" /></label
+      ><label class="full"
+        >PREFERENCIAS<input
+          formControlName="preferencias"
+          placeholder="Piel sensible, Prefiere mañanas"
+      /></label>
+    </div>
+    @if(error){
+    <p class="form-error" role="alert">{{error}}</p>
+    }<button class="primary full-button" [disabled]="busy">
+      {{busy?'Guardando…':'Guardar cliente'}}
+    </button>
+  </form>
+  } @case('treatment'){
+  <form [formGroup]="treatmentForm" (ngSubmit)="saveTreatment()">
+    <div class="form-grid">
+      <label class="full"
+        >NOMBRE DEL SERVICIO<input formControlName="nombre" /></label
+      ><label
+        >CATEGORÍA<select formControlName="categoria">
+          <option>Faciales</option>
+          <option>Corporales</option>
+          <option>Depilación</option>
+          <option>Masajes</option>
+        </select></label
+      ><label
+        >ILUSTRACIÓN<select formControlName="ilustracion">
+          <option value="facial">Rostro</option>
+          <option value="hydration">Hidratación</option>
+          <option value="stones">Piedras</option>
+          <option value="back">Espalda</option>
+          <option value="axilla">Axilas</option>
+          <option value="legs">Piernas</option>
+        </select></label
+      ><label
+        >DURACIÓN (MINUTOS)<input
+          type="number"
+          formControlName="duracion"
+          min="10"
+          max="180" /></label
+      ><label
+        >PRECIO (S/)<input
+          type="number"
+          formControlName="precio"
+          min="0"
+          step="0.01" /></label
+      ><label class="checkbox-label"
+        ><input type="checkbox" formControlName="activo" />Servicio
+        activo</label
+      >
+    </div>
+    @if(error){
+    <p class="form-error" role="alert">{{error}}</p>
+    }<button class="primary full-button" [disabled]="busy">
+      {{busy?'Guardando…':'Guardar servicio'}}
+    </button>
+  </form>
+  } @case('history'){
+  <p class="muted">Visitas y citas registradas de {{s.client.nombre}}.</p>
+  <div class="dialog-list">
+    @for(a of history();track a.id){
+    <div>
+      <span
+        ><strong>{{a.fecha}} · {{a.hora}}</strong
+        ><small>{{a.servicio}}</small></span
+      ><q-badge [text]="a.estado" />
+    </div>
+    }@empty{
+    <p class="empty">No hay citas registradas para este cliente.</p>
+    }
+  </div>
+  } @case('birthdays'){
+  <p class="muted">Celebra con tus clientes en los próximos 14 días.</p>
+  <div class="dialog-list">
+    @for(c of birthdays();track c.id){
+    <div>
+      <span><strong>{{c.nombre}}</strong><small>{{c.telefono}}</small></span
+      ><span>{{c.cumple.slice(5).split('-').reverse().join('/')}}</span>
+    </div>
+    }@empty{
+    <p class="empty">No hay cumpleaños próximos registrados.</p>
+    }
+  </div>
+  } @case('report'){@if(data.demo()){
+  <p class="muted">Agosto 2026 · Datos de presentación ficticios</p>
+  <div class="report-total">S/ 8,420<small>Ingresos del mes</small></div>
+  <div class="dialog-list">
+    <div>
+      <span>Limpieza facial profunda</span><strong>S/ 3,120 · 37%</strong>
+    </div>
+    <div><span>Masaje relajante</span><strong>S/ 2,450 · 29%</strong></div>
+    <div>
+      <span>Depilación láser – Piernas</span><strong>S/ 1,980 · 23%</strong>
+    </div>
+    <div><span>Otros servicios</span><strong>S/ 870 · 11%</strong></div>
+  </div>
+  <button class="primary full-button" (click)="exportReport()">
+    Descargar reporte CSV</button
+  >}@else{
+  <p>
+    La API actual no registra pagos. El reporte estará disponible cuando se
+    conecte una fuente de facturación.
+  </p>
+  }} @case('recovery'){
+  <p>
+    El acceso es administrado por tu centro estético. Solicita al administrador
+    que actualice tus credenciales de acceso.
+  </p>
+  <p class="muted">
+    Este sistema no tiene un servicio de recuperación por correo configurado.
+  </p>
+  <button class="primary full-button" (click)="dialogs.close()">
+    Volver al inicio de sesión</button
+  >} @case('delete'){
+  <p>
+    Se eliminará la cita de
+    <strong>{{s.appointment.nombre_completo}}</strong> del
+    {{s.appointment.fecha}} a las {{s.appointment.hora}}.
+  </p>
+  @if(error){
+  <p class="form-error" role="alert">{{error}}</p>
+  }
+  <div class="dialog-actions">
+    <button class="outline" (click)="dialogs.close()">Conservar cita</button
+    ><button class="primary" [disabled]="busy" (click)="remove()">
+      Eliminar cita
+    </button>
+  </div>
+  } }
+</dialog>

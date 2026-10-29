@@ -1,0 +1,201 @@
+<main class="page agenda-page">
+  <section class="page-heading">
+    <div class="heading-copy">
+      <h1>Agenda de citas</h1>
+      <p>Organiza, confirma y da seguimiento a cada visita.</p>
+    </div>
+    <div class="stats">
+      <q-stat label="Hoy" [value]="''+today()" note="citas" /><q-stat
+        icon="clock"
+        label="Esta semana"
+        [value]="''+weekly()"
+        note="citas"
+      /><q-stat
+        icon="users"
+        label="Por confirmar"
+        [value]="''+pending()"
+        note="citas"
+      />
+    </div>
+    <button
+      class="primary new-button"
+      (click)="dialogs.open({kind:'appointment'})"
+    >
+      <q-icon name="plus" />Nueva cita
+    </button>
+  </section>
+  <div class="agenda-grid">
+    <aside class="card mini-calendar">
+      <div class="month-heading">
+        <button
+          class="icon-button"
+          aria-label="Mes anterior"
+          (click)="changeMonth(-1)"
+        >
+          <q-icon name="left" /></button
+        ><strong>{{monthLabel()}}</strong
+        ><button
+          class="icon-button"
+          aria-label="Mes siguiente"
+          (click)="changeMonth(1)"
+        >
+          <q-icon name="chevron" />
+        </button>
+      </div>
+      <div class="month-grid">
+        @for(d of ['L','M','M','J','V','S','D'];track $index){<span
+          class="weekday"
+          >{{d}}</span
+        >}@for(c of cells();track c.iso){<button
+          [class.muted]="c.muted"
+          [class.selected]="c.iso===date()"
+          [attr.aria-label]="c.iso"
+          [attr.aria-pressed]="c.iso===date()"
+          (click)="selectDate(c.iso)"
+        >
+          {{c.day}}</button
+        >}
+      </div>
+      <button class="calendar-shortcut" (click)="view.set('Día')">
+        <q-icon name="calendar" /><span
+          >Ver agenda completa<small>Ver todas las citas del día</small></span
+        ><q-icon name="chevron" />
+      </button>
+    </aside>
+    <section class="card calendar-card">
+      <div class="calendar-toolbar">
+        <div class="segments">
+          @for(v of ['Día','Semana','Mes'];track v){<button
+            [class.active]="view()===v"
+            (click)="view.set(v)"
+          >
+            {{v}}</button
+          >}
+        </div>
+        <label class="field search-field"
+          ><q-icon name="search" /><input
+            aria-label="Buscar cliente en agenda"
+            placeholder="Buscar cliente"
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)" /></label
+        ><select
+          aria-label="Filtrar estado de cita"
+          [ngModel]="status()"
+          (ngModelChange)="status.set($event)"
+        >
+          <option value="">Todos los estados</option>
+          <option>Confirmada</option>
+          <option>Pendiente</option>
+          <option>Completada</option>
+        </select>
+        <div class="legend">
+          <span><i></i>Confirmada</span
+          ><span><i class="pending"></i>Pendiente</span
+          ><span><i class="completed"></i>Completada</span>
+        </div>
+      </div>
+      @if(view()==='Mes'){
+      <div class="large-month">
+        @for(c of cells();track c.iso){<button
+          class="month-cell"
+          [class.muted]="c.muted"
+          [class.active]="c.iso===date()"
+          (click)="selectDate(c.iso);view.set('Día')"
+        >
+          <strong>{{c.day}}</strong>@for(a of
+          appointments(c.iso).slice(0,3);track a.id){<span
+            >{{a.hora}} {{a.nombre_completo}}</span
+          >}@if(appointments(c.iso).length>3){<small
+            >+{{appointments(c.iso).length-3}} citas</small
+          >}</button
+        >}
+      </div>
+      } @else{
+      <div class="calendar-scroll">
+        <div
+          class="week-calendar"
+          [class.day-view]="view()==='Día'"
+          [style.--days]="days().length"
+          [style.--hours]="hours().length-1"
+        >
+          <div class="week-head">
+            <span></span>@for(d of days();track d.iso){<button
+              [class.active]="d.iso===date()"
+              (click)="selectDate(d.iso)"
+            >
+              {{d.label}} {{d.number}}</button
+            >}
+          </div>
+          <div class="week-body">
+            <div class="time-axis">
+              @for(h of hours();track h;let i=$index){<span
+                [style.top.%]="i/(hours().length-1)*100"
+                >{{h}}</span
+              >}
+            </div>
+            @for(d of days();track d.iso){
+            <div class="day-column">
+              @for(p of layout(d.iso);track p.item.id){<button
+                class="calendar-event"
+                [class.pending]="p.item.estado==='Pendiente'"
+                [class.completed]="p.item.estado==='Completada'"
+                [class.selected]="p.item.id===selectedId()"
+                [style.top.%]="(p.start-startMinute())/(endMinute()-startMinute())*100"
+                [style.height.%]="(p.end-p.start)/(endMinute()-startMinute())*100"
+                [style.left.%]="p.lane/p.lanes*100+3"
+                [style.width.%]="100/p.lanes-6"
+                [attr.title]="p.item.nombre_completo+' · '+p.item.servicio+' · '+p.item.duracion+' min'"
+                [attr.aria-label]="p.item.hora+' '+p.item.nombre_completo+' '+p.item.estado"
+                (click)="selectedId.set(p.item.id)"
+              >
+                <time>{{p.item.hora}}</time
+                ><strong>{{p.item.nombre_completo}}</strong
+                ><span>{{p.item.servicio}}</span></button
+              >}
+            </div>
+            }
+          </div>
+        </div>
+      </div>
+      }
+    </section>
+    <aside class="card next-appointment">
+      <h3>Próxima cita</h3>
+      @if(selected();as a){<q-avatar
+        [text]="initials(a.nombre_completo)"
+        [large]="true"
+      />
+      <div class="next-time">{{a.hora}}</div>
+      <h3>{{a.nombre_completo}}</h3>
+      <p>{{a.servicio||'Cita'}}</p>
+      <div class="phone-block"><q-icon name="phone" />{{a.whatsapp}}</div>
+      <button
+        class="primary"
+        (click)="confirm(a)"
+        [disabled]="a.estado==='Completada'"
+      >
+        <q-icon name="check" />Confirmar</button
+      ><button
+        class="outline"
+        (click)="dialogs.open({kind:'appointment',value:a})"
+      >
+        <q-icon name="calendar" />Reprogramar</button
+      ><button class="text-button client-link" (click)="client(a)">
+        Ver ficha del cliente<q-icon name="chevron" /></button
+      ><button
+        class="text-button subtle-action"
+        [disabled]="a.estado==='Completada'"
+        (click)="complete(a)"
+      >
+        Marcar completada</button
+      ><button
+        class="text-button subtle-action"
+        (click)="dialogs.open({kind:'delete',appointment:a})"
+      >
+        Eliminar cita</button
+      >}@else{
+      <p class="empty">Selecciona una cita en el calendario.</p>
+      }
+    </aside>
+  </div>
+</main>
